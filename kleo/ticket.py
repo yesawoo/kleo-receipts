@@ -41,10 +41,17 @@ class TicketPrinter:
     # 80mm = ~48 characters at standard font
     # 58mm = ~32 characters at standard font
     DEFAULT_WIDTH = 48
+    DEFAULT_TOP_MARGIN = 2  # Lines to feed before printing
 
-    def __init__(self, printer: Escpos, width: int = DEFAULT_WIDTH) -> None:
+    def __init__(
+        self,
+        printer: Escpos,
+        width: int = DEFAULT_WIDTH,
+        top_margin: int = DEFAULT_TOP_MARGIN,
+    ) -> None:
         self.printer = printer
         self.width = width
+        self.top_margin = top_margin
 
     def _center(self, text: str) -> str:
         """Center text within the ticket width."""
@@ -67,6 +74,10 @@ class TicketPrinter:
             task: The task to print.
         """
         p = self.printer
+
+        # Top margin - feed paper before printing to avoid cutoff
+        if self.top_margin > 0:
+            p.text("\n" * self.top_margin)
 
         # Header
         p.set(align="center", bold=True, double_height=True, double_width=True)
