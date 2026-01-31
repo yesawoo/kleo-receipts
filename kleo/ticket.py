@@ -81,8 +81,9 @@ class TicketPrinter:
 
         # Header
         p.set(align="center", bold=True, double_height=True, double_width=True)
-        p.text("TASK TICKET\n")
-        p.set(align="center", bold=False, double_height=False, double_width=False)
+        p.text("TASK TICKET")
+        p.set_with_default(align="center")
+        p.text("\n")
         p.text(self._separator("=") + "\n")
 
         # Task ID and Priority
@@ -97,9 +98,9 @@ class TicketPrinter:
         # Title
         p.set(align="center", bold=True, double_height=True)
         for line in self._wrap_text(task.title):
-            p.text(line + "\n")
-        p.set(bold=False, double_height=False)
-        p.text("\n")
+            p.text(line)
+        p.set_with_default(align="center")
+        p.text("\n\n")
 
         # Description
         if task.description:
