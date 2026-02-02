@@ -33,6 +33,13 @@ class Task:
         }
         return symbols.get(self.priority, "[*]")
 
+    @property
+    def complete_url(self) -> str | None:
+        """Get the Things URL scheme to mark this task complete."""
+        if self.task_id:
+            return f"things:///complete?id={self.task_id}"
+        return None
+
 
 class TicketPrinter:
     """Handles formatting and printing task tickets."""
@@ -125,7 +132,16 @@ class TicketPrinter:
             p.set(bold=False)
             p.text(task.due_date.strftime("%Y-%m-%d %H:%M") + "\n")
 
+        # QR code for task completion (Things URL scheme)
+        if task.complete_url:
+            p.text("\n")
+            p.set(align="center")
+            p.text("Scan to complete:\n")
+            p.qr(task.complete_url, size=6, center=True)
+            p.text("\n")
+
         # Footer
+        p.set_with_default()
         p.text(self._separator("-") + "\n")
         p.set(align="center", font="b")
         p.text(f"Created: {task.created_at.strftime('%Y-%m-%d %H:%M')}\n")
@@ -172,6 +188,14 @@ class TicketPrinter:
 
         if task.due_date:
             lines.append(f"Due: {task.due_date.strftime('%Y-%m-%d %H:%M')}")
+
+        # QR code placeholder for preview
+        if task.complete_url:
+            lines.append("")
+            lines.append(self._center("Scan to complete:"))
+            lines.append(self._center("[QR CODE]"))
+            lines.append(self._center(task.complete_url))
+            lines.append("")
 
         lines.append(sep_dash)
         lines.append(self._center(f"Created: {task.created_at.strftime('%Y-%m-%d %H:%M')}"))
