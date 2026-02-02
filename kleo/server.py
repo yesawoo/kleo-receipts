@@ -1,0 +1,235 @@
+"""Server mode for periodic task ticket printing."""
+
+from __future__ import annotations
+
+import re
+import signal
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+import schedule
+from rich.console import Console
+
+from kleo.printer import PrinterConfig, get_printer
+from kleo.ticket import TicketPrinter
+
+if TYPE_CHECKING:
+    from kleo.sources.base import TaskSource
+    from kleo.strategies.base import SelectionStrategy
+
+console = Console()
+
+
+@dataclass
+class ServerConfig:
+    """Configuration for the ticket server."""
+
+    every: str = "30 minutes"
+    printer_config: PrinterConfig | None = None
+    dry_run: bool = False
+    run_now: bool = True
+
+    # Parsed schedule components (set by _parse_schedule)
+    _interval: int = field(default=30, init=False, repr=False)
+    _unit: str = field(default="minutes", init=False, repr=False)
+    _at_time: str | None = field(default=None, init=False, repr=False)
+
+
+class TicketServer:
+    """Server that periodically prints task tickets.
+
+    Uses the schedule library to run at configured intervals,
+    fetching tasks from a source and selecting one to print.
+    """
+
+    def __init__(
+        self,
+        source: TaskSource,
+        strategy: SelectionStrategy,
+        config: ServerConfig,
+    ) -> None:
+        """Initialize the ticket server.
+
+        Args:
+            source: Where to fetch tasks from.
+            strategy: How to select which task to print.
+            config: Server configuration options.
+        """
+        self.source = source
+        self.strategy = strategy
+        self.config = config
+        self._running = False
+        self._tick_count = 0
+
+    def start(self) -> None:
+        """Start the server loop.
+
+        Configures the schedule based on the --every flag, optionally
+        runs immediately, then enters a loop running pending jobs.
+        Handles SIGINT and SIGTERM for graceful shutdown.
+        """
+        self._running = True
+        self._setup_signal_handlers()
+        self._configure_schedule()
+
+        console.print()
+        console.print("[bold green]Kleo Ticket Server Started[/bold green]")
+        console.print(f"  Source: [cyan]{self.source.name}[/cyan]")
+        console.print(f"  Strategy: [cyan]{self.strategy.name}[/cyan]")
+        console.print(f"  Schedule: [cyan]{self.config.every}[/cyan]")
+        if self.config.dry_run:
+            console.print("  Mode: [yellow]DRY RUN (no actual printing)[/yellow]")
+        console.print()
+        console.print("[dim]Press Ctrl+C to stop[/dim]")
+        console.print()
+
+        if self.config.run_now:
+            self._tick()
+
+        while self._running:
+            schedule.run_pending()
+            time.sleep(1)
+
+        console.print()
+        console.print("[bold yellow]Server stopped[/bold yellow]")
+
+    def stop(self) -> None:
+        """Stop the server loop."""
+        self._running = False
+
+    def _setup_signal_handlers(self) -> None:
+        """Set up signal handlers for graceful shutdown."""
+        signal.signal(signal.SIGINT, self._handle_signal)
+        signal.signal(signal.SIGTERM, self._handle_signal)
+
+    def _handle_signal(self, signum: int, frame: object) -> None:
+        """Handle shutdown signals."""
+        console.print("\n[yellow]Received shutdown signal...[/yellow]")
+        self.stop()
+
+    def _configure_schedule(self) -> None:
+        """Parse the --every flag and configure the schedule library."""
+        self._parse_schedule()
+
+        interval = self.config._interval
+        unit = self.config._unit
+        at_time = self.config._at_time
+
+        # Build the schedule based on parsed components
+        if unit == "seconds":
+            job = schedule.every(interval).seconds
+        elif unit == "minutes":
+            job = schedule.every(interval).minutes
+        elif unit == "hours":
+            job = schedule.every(interval).hours
+        elif unit == "days":
+            job = schedule.every(interval).days
+            if at_time:
+                job = job.at(at_time)
+        elif unit == "weeks":
+            job = schedule.every(interval).weeks
+            if at_time:
+                job = job.at(at_time)
+        elif unit in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"):
+            # Day of week scheduling
+            day_job = getattr(schedule.every(), unit)
+            if at_time:
+                job = day_job.at(at_time)
+            else:
+                job = day_job
+        else:
+            raise ValueError(f"Unsupported schedule unit: {unit}")
+
+        job.do(self._tick)
+
+    def _parse_schedule(self) -> None:
+        """Parse the natural language schedule string.
+
+        Supports patterns like:
+        - "30 seconds", "5 minutes", "2 hours", "1 day", "1 week"
+        - "1 day at 09:00", "1 week at 10:30"
+        - "monday", "tuesday at 14:00"
+        """
+        every = self.config.every.lower().strip()
+
+        # Check for day-of-week patterns
+        days_of_week = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+        for day in days_of_week:
+            if every.startswith(day):
+                self.config._unit = day
+                self.config._interval = 1
+                # Check for "at HH:MM" suffix
+                at_match = re.search(r"at\s+(\d{1,2}:\d{2})", every)
+                if at_match:
+                    self.config._at_time = at_match.group(1)
+                return
+
+        # Parse "N unit [at HH:MM]" patterns
+        pattern = r"^(\d+)\s*(seconds?|minutes?|hours?|days?|weeks?)\s*(?:at\s+(\d{1,2}:\d{2}))?$"
+        match = re.match(pattern, every)
+
+        if not match:
+            raise ValueError(
+                f"Invalid schedule format: '{self.config.every}'. "
+                "Expected formats: '30 minutes', '2 hours', '1 day at 09:00', 'monday at 10:30'"
+            )
+
+        interval_str, unit, at_time = match.groups()
+        self.config._interval = int(interval_str)
+
+        # Normalize unit to plural
+        unit = unit.rstrip("s") + "s"
+        self.config._unit = unit
+
+        if at_time:
+            self.config._at_time = at_time
+
+    def _tick(self) -> None:
+        """Execute one print cycle: fetch, select, print."""
+        self._tick_count += 1
+        now = datetime.now().strftime("%H:%M:%S")
+
+        console.print(f"[dim][{now}][/dim] Tick #{self._tick_count}")
+
+        # Fetch tasks
+        try:
+            tasks = self.source.fetch_tasks()
+        except Exception as e:
+            console.print(f"  [red]Error fetching tasks:[/red] {e}")
+            return
+
+        if not tasks:
+            console.print("  [yellow]No tasks available[/yellow]")
+            return
+
+        console.print(f"  Found [cyan]{len(tasks)}[/cyan] task(s)")
+
+        # Select a task
+        task = self.strategy.select(tasks)
+        if task is None:
+            console.print("  [yellow]Strategy returned no task[/yellow]")
+            return
+
+        console.print(f"  Selected: [bold]{task.title}[/bold]")
+
+        # Print the task
+        if self.config.dry_run:
+            console.print("  [yellow]Dry run - skipping print[/yellow]")
+            self.strategy.on_printed(task)
+            return
+
+        try:
+            with get_printer(self.config.printer_config) as printer:
+                ticket_printer = TicketPrinter(printer)
+                if self.config.printer_config and self.config.printer_config.connection_type != "dummy":
+                    ticket_printer.print_task(task)
+                    console.print("  [green]Printed successfully[/green]")
+                else:
+                    # Dummy mode - show preview
+                    preview = ticket_printer.print_preview(task)
+                    console.print(f"  [dim]Preview:[/dim]\n{preview}")
+            self.strategy.on_printed(task)
+        except Exception as e:
+            console.print(f"  [red]Error printing:[/red] {e}")

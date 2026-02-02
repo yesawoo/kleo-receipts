@@ -7,10 +7,6 @@ from datetime import datetime
 from typing import Annotated, Optional
 
 import typer
-
-# Environment variable for default printer
-ENV_PRINTER_NAME = "KLEO_PRINTER_NAME"
-ENV_PRINTER_HOST = "KLEO_PRINTER_HOST"
 from rich import print as rprint
 from rich.console import Console
 from rich.panel import Panel
@@ -19,6 +15,13 @@ from kleo import __version__
 from kleo.discovery import discover_printers, find_printer_by_name
 from kleo.printer import PrinterConfig, get_printer, detect_usb_printers
 from kleo.ticket import Task, TicketPrinter
+
+# Environment variables for configuration
+ENV_PRINTER_NAME = "KLEO_PRINTER_NAME"
+ENV_PRINTER_HOST = "KLEO_PRINTER_HOST"
+ENV_EVERY = "KLEO_EVERY"
+ENV_TAG = "KLEO_TAG"
+ENV_STRATEGY = "KLEO_STRATEGY"
 
 app = typer.Typer(
     name="kleo",
@@ -273,6 +276,192 @@ def discover(
         example_name = printers[0].display_name
         rprint(f"  kleo print-task \"My Task\" --printer {example_name}")
         rprint("  kleo print-task \"My Task\" --auto  [dim]# uses first available[/dim]")
+
+
+def _resolve_printer_config(
+    auto: bool,
+    printer_name: str | None,
+    host: str | None,
+    connection: str,
+    vendor_id: str | None = None,
+    product_id: str | None = None,
+) -> PrinterConfig | None:
+    """Resolve printer configuration from CLI options and environment.
+
+    Args:
+        auto: Whether to auto-discover via Bonjour.
+        printer_name: Specific printer name to find via Bonjour.
+        host: Network printer host.
+        connection: Connection type (usb, network, dummy).
+        vendor_id: USB vendor ID (hex string).
+        product_id: USB product ID (hex string).
+
+    Returns:
+        PrinterConfig if a printer is configured, None for dummy mode.
+
+    Raises:
+        typer.Exit: If printer discovery fails or required options are missing.
+    """
+    # Check environment variables for defaults
+    env_printer = os.environ.get(ENV_PRINTER_NAME)
+    env_host = os.environ.get(ENV_PRINTER_HOST)
+
+    # If no printer specified, check environment variables
+    if not auto and not printer_name and not host and connection == "dummy":
+        if env_printer:
+            printer_name = env_printer
+            rprint(f"[dim]Using printer from {ENV_PRINTER_NAME}={env_printer}[/dim]")
+        elif env_host:
+            host = env_host
+            connection = "network"
+            rprint(f"[dim]Using host from {ENV_PRINTER_HOST}={env_host}[/dim]")
+
+    # Handle auto-discovery
+    if auto or printer_name:
+        rprint("[dim]Discovering printers via Bonjour...[/dim]")
+        if printer_name:
+            discovered = find_printer_by_name(printer_name)
+            if not discovered:
+                rprint(f"[red]Error:[/red] Printer '{printer_name}' not found")
+                raise typer.Exit(1)
+            host = discovered.host
+            rprint(f"[green]Found printer:[/green] {discovered.display_name} at {host}:{discovered.port}")
+        else:
+            printers = discover_printers()
+            if not printers:
+                rprint("[red]Error:[/red] No network printers found")
+                raise typer.Exit(1)
+            discovered = printers[0]
+            host = discovered.host
+            rprint(f"[green]Using printer:[/green] {discovered.display_name} at {host}:{discovered.port}")
+        connection = "network"
+
+    # Configure printer
+    if connection == "dummy":
+        return None
+
+    config = PrinterConfig(connection_type=connection)
+    if connection == "network":
+        if not host:
+            rprint("[red]Error:[/red] Network connection requires --host, --auto, or --printer")
+            raise typer.Exit(1)
+        config.host = host
+    elif connection == "usb":
+        if vendor_id:
+            config.vendor_id = int(vendor_id, 16) if vendor_id.startswith("0x") else int(vendor_id)
+        if product_id:
+            config.product_id = int(product_id, 16) if product_id.startswith("0x") else int(product_id)
+
+    return config
+
+
+@app.command()
+def serve(
+    every: Annotated[
+        str,
+        typer.Option(
+            "--every", "-e",
+            help="Schedule interval (e.g., '30 minutes', '2 hours', '1 day at 09:00')",
+            envvar=ENV_EVERY,
+        ),
+    ] = "30 minutes",
+    tag: Annotated[
+        str,
+        typer.Option(
+            "--tag", "-t",
+            help="Things tag to filter tasks by",
+            envvar=ENV_TAG,
+        ),
+    ] = "5m",
+    strategy: Annotated[
+        str,
+        typer.Option(
+            "--strategy", "-s",
+            help="Task selection strategy (e.g., 'random')",
+            envvar=ENV_STRATEGY,
+        ),
+    ] = "random",
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Run without actually printing"),
+    ] = False,
+    now: Annotated[
+        bool,
+        typer.Option("--now/--no-now", help="Print immediately on start"),
+    ] = True,
+    connection: Annotated[
+        str,
+        typer.Option("--connection", "-c", help="Connection type: usb, network, dummy"),
+    ] = "dummy",
+    host: Annotated[
+        Optional[str],
+        typer.Option("--host", help="Printer host (for network connection)"),
+    ] = None,
+    auto: Annotated[
+        bool,
+        typer.Option("--auto", "-a", help="Auto-discover network printer via Bonjour"),
+    ] = False,
+    printer_name: Annotated[
+        Optional[str],
+        typer.Option("--printer", help="Printer name to find via Bonjour (e.g., 'kleo')"),
+    ] = None,
+) -> None:
+    """Start server mode to periodically print task tickets from Things.
+
+    Fetches tasks from Things app with the specified tag, selects one using
+    the configured strategy, and prints a ticket at the specified interval.
+
+    Examples:
+        kleo serve --every "30 minutes" --tag 5m --auto
+        kleo serve --every "2 hours" --strategy random --dry-run
+        kleo serve --every "1 day at 09:00" --printer kleo
+    """
+    from kleo.server import ServerConfig, TicketServer
+    from kleo.sources import ThingsSource
+    from kleo.strategies import get_strategy
+
+    # Resolve printer configuration
+    printer_config = _resolve_printer_config(
+        auto=auto,
+        printer_name=printer_name,
+        host=host,
+        connection=connection,
+    )
+
+    # Create task source
+    source = ThingsSource(tag=tag)
+
+    # Get selection strategy
+    try:
+        selection_strategy = get_strategy(strategy)
+    except ValueError as e:
+        rprint(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+    # Create server config
+    try:
+        server_config = ServerConfig(
+            every=every,
+            printer_config=printer_config,
+            dry_run=dry_run,
+            run_now=now,
+        )
+    except ValueError as e:
+        rprint(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+    # Create and start server
+    server = TicketServer(
+        source=source,
+        strategy=selection_strategy,
+        config=server_config,
+    )
+
+    try:
+        server.start()
+    except ValueError as e:
+        rprint(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":
