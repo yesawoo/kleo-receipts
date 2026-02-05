@@ -13,13 +13,16 @@ class ThingsSource(TaskSource):
     reads directly from Things' SQLite database.
     """
 
-    def __init__(self, tag: str = "5m") -> None:
+    def __init__(self, tag: str = "5m", auth_token: str | None = None) -> None:
         """Initialize the Things source.
 
         Args:
             tag: The tag to filter tasks by (default: "5m").
+            auth_token: Things URL scheme auth token for task completion.
+                Find in Things: Settings → General → Things URLs → Manage.
         """
         self.tag = tag
+        self.auth_token = auth_token
 
     @property
     def name(self) -> str:
@@ -56,6 +59,7 @@ class ThingsSource(TaskSource):
                 title=todo.get("title", "Untitled"),
                 description=todo.get("notes") or None,
                 task_id=todo.get("uuid"),
+                auth_token=self.auth_token,
                 tags=[self.tag],
             )
             for todo in todos

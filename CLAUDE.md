@@ -51,6 +51,17 @@ The `--every` flag supports natural language patterns:
 | `KLEO_STRATEGY` | "random" | Task selection strategy |
 | `KLEO_PRINTER_NAME` | - | Bonjour printer name |
 | `KLEO_PRINTER_HOST` | - | Network printer host |
+| `KLEO_THINGS_AUTH_TOKEN` | - | Things URL auth token (required for QR codes) |
+
+### Things Auth Token
+
+To enable "scan to complete" QR codes on tickets, you need a Things URL auth token:
+
+1. Open Things app
+2. Go to Settings → General → Things URLs (Mac) or Settings → General → Things URLs (iOS)
+3. Enable "Things URLs" if not already enabled
+4. Click "Manage" to reveal your auth token
+5. Set the token: `export KLEO_THINGS_AUTH_TOKEN="your-token-here"`
 
 ### Architecture
 

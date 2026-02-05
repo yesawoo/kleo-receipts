@@ -22,6 +22,7 @@ ENV_PRINTER_HOST = "KLEO_PRINTER_HOST"
 ENV_EVERY = "KLEO_EVERY"
 ENV_TAG = "KLEO_TAG"
 ENV_STRATEGY = "KLEO_STRATEGY"
+ENV_THINGS_AUTH_TOKEN = "KLEO_THINGS_AUTH_TOKEN"
 
 app = typer.Typer(
     name="kleo",
@@ -381,6 +382,14 @@ def serve(
             envvar=ENV_STRATEGY,
         ),
     ] = "random",
+    things_auth_token: Annotated[
+        Optional[str],
+        typer.Option(
+            "--things-auth-token",
+            help="Things URL auth token for task completion QR codes",
+            envvar=ENV_THINGS_AUTH_TOKEN,
+        ),
+    ] = None,
     dry_run: Annotated[
         bool,
         typer.Option("--dry-run", help="Run without actually printing"),
@@ -428,8 +437,15 @@ def serve(
         connection=connection,
     )
 
+    # Warn if no auth token configured
+    if not things_auth_token:
+        rprint("[yellow]Warning:[/yellow] No Things auth token configured. "
+               "QR codes will not be printed for task completion.")
+        rprint("[dim]Set KLEO_THINGS_AUTH_TOKEN or use --things-auth-token[/dim]")
+        rprint("[dim]Find token in Things: Settings → General → Things URLs[/dim]\n")
+
     # Create task source
-    source = ThingsSource(tag=tag)
+    source = ThingsSource(tag=tag, auth_token=things_auth_token)
 
     # Get selection strategy
     try:

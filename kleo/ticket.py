@@ -20,6 +20,7 @@ class Task:
     due_date: datetime | None = None
     tags: list[str] = field(default_factory=list)
     task_id: str | None = None
+    auth_token: str | None = None
     created_at: datetime = field(default_factory=datetime.now)
 
     @property
@@ -35,9 +36,13 @@ class Task:
 
     @property
     def complete_url(self) -> str | None:
-        """Get the Things URL scheme to mark this task complete."""
-        if self.task_id:
-            return f"things:///complete?id={self.task_id}"
+        """Get the Things URL scheme to mark this task complete.
+
+        Requires both task_id and auth_token. The auth_token can be found in
+        Things settings: Settings → General → Things URLs → Manage.
+        """
+        if self.task_id and self.auth_token:
+            return f"things:///update?id={self.task_id}&auth-token={self.auth_token}&completed=true"
         return None
 
 
