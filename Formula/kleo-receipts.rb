@@ -3,8 +3,8 @@ class KleoReceipts < Formula
 
   desc "CLI tool for printing task tickets to Epson receipt printers"
   homepage "https://github.com/yesawoo/kleo-receipts"
-  url "https://files.pythonhosted.org/packages/5e/16/4c311f63999d3f2f4a81e72af17d1c3ff0f68d4f3083ef9b4f2d6a317604/kleo_receipts-0.2.0.tar.gz"
-  sha256 "3530fa76156245e9245ca1a0778aa193ec2a41fa3d4d35c9aac23936a7c86b06"
+  url "https://files.pythonhosted.org/packages/03/23/4e25b4740dd7d4ab31252da89d21ec7f51fdcc9524b40225091b0de786b1/kleo_receipts-0.2.1.tar.gz"
+  sha256 "3b972710269e46a8da656857d2d1469c7ae0ded56b9265a536791d4593f9278c"
   license "MIT"
 
   depends_on "freetype"
