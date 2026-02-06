@@ -1,5 +1,7 @@
 # kleo-receipts
 
+Named for [KLEO](https://fallout.fandom.com/wiki/KL-E-0), the Assaultron shopkeeper in Fallout 4. Every good merchant needs a receipt printer.
+
 CLI tool for printing task tickets to Epson receipt printers. Fetches tasks from [Things](https://culturedcode.com/things/) and prints them as physical tickets with QR codes for "scan to complete".
 
 ## Install
