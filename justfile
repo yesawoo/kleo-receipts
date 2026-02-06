@@ -59,15 +59,35 @@ publish:
     uv build
     uv publish
 
-# Show Homebrew formula URL and sha256 for a given version
+# Tag a release and push (triggers CI to publish to PyPI + create GitHub release)
+release VERSION:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Tagging v{{VERSION}} and pushing..."
+    git tag -a "v{{VERSION}}" -m "Release v{{VERSION}}"
+    git push origin "v{{VERSION}}"
+    echo "Pushed v{{VERSION}} — CI will publish to PyPI and create a GitHub release."
+
+# Show PyPI URL and sha256 for updating the Homebrew formula
 bump-formula VERSION:
     #!/usr/bin/env bash
     set -euo pipefail
-    URL="https://files.pythonhosted.org/packages/source/k/kleo-receipts/kleo_receipts-{{VERSION}}.tar.gz"
-    echo "Fetching sha256 from PyPI..."
-    SHA=$(curl -sL "$URL" | shasum -a 256 | cut -d' ' -f1)
-    echo "url \"$URL\""
-    echo "sha256 \"$SHA\""
+    echo "Fetching sha256 for kleo-receipts {{VERSION}} from PyPI..."
+    JSON=$(curl -sL "https://pypi.org/pypi/kleo-receipts/{{VERSION}}/json")
+    URL=$(echo "$JSON" | python3 -c "import json,sys; [print(u['url']) for u in json.load(sys.stdin)['urls'] if u['packagetype']=='sdist']")
+    SHA=$(echo "$JSON" | python3 -c "import json,sys; [print(u['digests']['sha256']) for u in json.load(sys.stdin)['urls'] if u['packagetype']=='sdist']")
+    echo ""
+    echo "Update Formula/kleo-receipts.rb in yesawoo/homebrew-tap:"
+    echo "  url \"$URL\""
+    echo "  sha256 \"$SHA\""
+
+# Verify the sdist contains only expected files
+verify-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    uv build
+    echo "Contents of sdist:"
+    tar tzf dist/kleo_receipts-*.tar.gz
 
 # Clean build artifacts
 clean:
