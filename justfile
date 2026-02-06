@@ -50,6 +50,19 @@ fmt:
 typecheck:
     uv run mypy kleo/
 
+# Build sdist and wheel
+build:
+    uv build
+
+# Build and publish to PyPI
+publish:
+    uv build
+    uv publish
+
+# Generate Homebrew resource stanzas (requires homebrew-pypi-poet)
+brew-resources:
+    uv run --with homebrew-pypi-poet poet kleo-receipts
+
 # Clean build artifacts
 clean:
     rm -rf dist/ build/ *.egg-info .ruff_cache .mypy_cache __pycache__
