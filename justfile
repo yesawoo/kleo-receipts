@@ -59,9 +59,15 @@ publish:
     uv build
     uv publish
 
-# Generate Homebrew resource stanzas (requires homebrew-pypi-poet)
-brew-resources:
-    uv run --with homebrew-pypi-poet poet kleo-receipts
+# Show Homebrew formula URL and sha256 for a given version
+bump-formula VERSION:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    URL="https://files.pythonhosted.org/packages/source/k/kleo-receipts/kleo_receipts-{{VERSION}}.tar.gz"
+    echo "Fetching sha256 from PyPI..."
+    SHA=$(curl -sL "$URL" | shasum -a 256 | cut -d' ' -f1)
+    echo "url \"$URL\""
+    echo "sha256 \"$SHA\""
 
 # Clean build artifacts
 clean:
