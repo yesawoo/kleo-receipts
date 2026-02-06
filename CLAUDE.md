@@ -108,6 +108,46 @@ Server mode uses a strategy pattern for task selection:
 - `kleo/strategies/` - Selection strategies (random, etc.)
 - `kleo/server.py` - Server loop using `schedule` library
 
+## Release & Deployment
+
+Version is tracked in two places — both must match:
+- `kleo/__init__.py` → `__version__`
+- `pyproject.toml` → `version`
+
+### Publishing a new version
+
+```bash
+# 1. Bump version in kleo/__init__.py and pyproject.toml
+# 2. Commit and push to main
+git push origin main
+
+# 3. Tag and push — triggers CI to publish to PyPI + create GitHub Release
+just release X.Y.Z
+
+# 4. Wait for CI to finish, then get the new PyPI URL + sha256
+just bump-formula X.Y.Z
+
+# 5. Update BOTH Homebrew formulas with the new url + sha256:
+#    - Formula/kleo-receipts.rb            (copy in this repo)
+#    - ../homebrew-tap/Formula/kleo-receipts.rb  (the actual tap)
+# 6. Commit + push both repos
+```
+
+### CI pipeline
+
+`.github/workflows/release.yml` triggers on `v*` tags:
+1. Builds sdist + wheel via `uv build`
+2. Publishes to PyPI via `uv publish` (needs `PYPI_TOKEN` secret)
+3. Creates a GitHub Release with release notes
+
+### Homebrew formula updates
+
+The formula lives in two places that must stay in sync:
+- `Formula/kleo-receipts.rb` — copy kept in this repo for reference
+- `../homebrew-tap/Formula/kleo-receipts.rb` — the actual Homebrew tap repo (`yesawoo/homebrew-tap`)
+
+After PyPI publish, update `url` and `sha256` in both. The `service do` block and `depends_on` lines rarely change.
+
 ## python-escpos Gotchas
 
 ### Use `set_with_default()` to reset text formatting
