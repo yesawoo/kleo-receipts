@@ -132,6 +132,14 @@ class KleoReceipts < Formula
     virtualenv_install_with_resources
   end
 
+  service do
+    run [opt_bin/"kleo", "serve"]
+    keep_alive true
+    log_path var/"log/kleo-receipts.log"
+    error_log_path var/"log/kleo-receipts-error.log"
+    environment_variables PATH: std_service_path_env
+  end
+
   test do
     assert_match version.to_s, shell_output("#{bin}/kleo --version")
   end

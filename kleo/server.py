@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import signal
 import time
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING
 import schedule
 from rich.console import Console
 
+from kleo.config import ServerState
 from kleo.printer import PrinterConfig, get_printer
 from kleo.ticket import TicketPrinter
 
@@ -50,29 +52,24 @@ class TicketServer:
         strategy: SelectionStrategy,
         config: ServerConfig,
     ) -> None:
-        """Initialize the ticket server.
-
-        Args:
-            source: Where to fetch tasks from.
-            strategy: How to select which task to print.
-            config: Server configuration options.
-        """
         self.source = source
         self.strategy = strategy
         self.config = config
         self._running = False
         self._tick_count = 0
+        self._state = ServerState(
+            pid=os.getpid(),
+            started_at=datetime.now().isoformat(),
+        )
 
     def start(self) -> None:
-        """Start the server loop.
-
-        Configures the schedule based on the --every flag, optionally
-        runs immediately, then enters a loop running pending jobs.
-        Handles SIGINT and SIGTERM for graceful shutdown.
-        """
+        """Start the server loop."""
         self._running = True
         self._setup_signal_handlers()
         self._configure_schedule()
+
+        # Save initial state
+        self._state.save()
 
         console.print()
         console.print("[bold green]Kleo Ticket Server Started[/bold green]")
@@ -91,6 +88,10 @@ class TicketServer:
         while self._running:
             schedule.run_pending()
             time.sleep(1)
+
+        # Clear PID on shutdown
+        self._state.pid = None
+        self._state.save()
 
         console.print()
         console.print("[bold yellow]Server stopped[/bold yellow]")
@@ -132,7 +133,15 @@ class TicketServer:
             job = schedule.every(interval).weeks
             if at_time:
                 job = job.at(at_time)
-        elif unit in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"):
+        elif unit in (
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        ):
             # Day of week scheduling
             day_job = getattr(schedule.every(), unit)
             if at_time:
@@ -155,7 +164,15 @@ class TicketServer:
         every = self.config.every.lower().strip()
 
         # Check for day-of-week patterns
-        days_of_week = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+        days_of_week = (
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        )
         for day in days_of_week:
             if every.startswith(day):
                 self.config._unit = day
@@ -193,15 +210,30 @@ class TicketServer:
 
         console.print(f"[dim][{now}][/dim] Tick #{self._tick_count}")
 
+        # Update state
+        self._state.tick_count = self._tick_count
+        self._state.last_tick_at = datetime.now().isoformat()
+
+        # Compute next run time
+        next_job = schedule.next_run()
+        if next_job:
+            self._state.next_run_at = str(next_job)
+
         # Fetch tasks
         try:
             tasks = self.source.fetch_tasks()
         except Exception as e:
             console.print(f"  [red]Error fetching tasks:[/red] {e}")
+            self._state.last_tick_status = "error"
+            self._state.last_error = str(e)
+            self._state.save()
             return
 
         if not tasks:
             console.print("  [yellow]No tasks available[/yellow]")
+            self._state.last_tick_status = "no_tasks"
+            self._state.last_error = None
+            self._state.save()
             return
 
         console.print(f"  Found [cyan]{len(tasks)}[/cyan] task(s)")
@@ -210,6 +242,8 @@ class TicketServer:
         task = self.strategy.select(tasks)
         if task is None:
             console.print("  [yellow]Strategy returned no task[/yellow]")
+            self._state.last_tick_status = "no_tasks"
+            self._state.save()
             return
 
         console.print(f"  Selected: [bold]{task.title}[/bold]")
@@ -218,12 +252,19 @@ class TicketServer:
         if self.config.dry_run:
             console.print("  [yellow]Dry run - skipping print[/yellow]")
             self.strategy.on_printed(task)
+            self._state.last_tick_status = "ok"
+            self._state.last_error = None
+            self._state.last_task_title = task.title
+            self._state.save()
             return
 
         try:
             with get_printer(self.config.printer_config) as printer:
                 ticket_printer = TicketPrinter(printer)
-                if self.config.printer_config and self.config.printer_config.connection_type != "dummy":
+                if (
+                    self.config.printer_config
+                    and self.config.printer_config.connection_type != "dummy"
+                ):
                     ticket_printer.print_task(task)
                     console.print("  [green]Printed successfully[/green]")
                 else:
@@ -231,5 +272,12 @@ class TicketServer:
                     preview = ticket_printer.print_preview(task)
                     console.print(f"  [dim]Preview:[/dim]\n{preview}")
             self.strategy.on_printed(task)
+            self._state.last_tick_status = "ok"
+            self._state.last_error = None
+            self._state.last_task_title = task.title
         except Exception as e:
             console.print(f"  [red]Error printing:[/red] {e}")
+            self._state.last_tick_status = "error"
+            self._state.last_error = str(e)
+
+        self._state.save()

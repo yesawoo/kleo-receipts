@@ -203,7 +203,9 @@ class TicketPrinter:
             lines.append("")
 
         lines.append(sep_dash)
-        lines.append(self._center(f"Created: {task.created_at.strftime('%Y-%m-%d %H:%M')}"))
+        lines.append(
+            self._center(f"Created: {task.created_at.strftime('%Y-%m-%d %H:%M')}")
+        )
         lines.append(sep_eq)
 
         return "\n".join(lines)

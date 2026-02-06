@@ -79,10 +79,12 @@ def detect_usb_printers() -> list[dict[str, int]]:
         # Look for Epson printers (vendor ID 0x04B8)
         devices = usb.core.find(find_all=True, idVendor=0x04B8)
         for device in devices:
-            printers.append({
-                "vendor_id": device.idVendor,
-                "product_id": device.idProduct,
-            })
+            printers.append(
+                {
+                    "vendor_id": device.idVendor,
+                    "product_id": device.idProduct,
+                }
+            )
         return printers
     except ImportError:
         return []

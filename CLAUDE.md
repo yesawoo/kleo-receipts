@@ -12,27 +12,64 @@ uv run kleo print-task "Task" --auto       # Print via Bonjour discovery
 uv run kleo discover                       # Find network printers
 ```
 
+## Configuration System
+
+Config is loaded from `~/.config/kleo/config.toml` > env vars > defaults.
+
+```bash
+uv run kleo config show                    # Show all config with sources
+uv run kleo config set schedule.every="2 hours"  # Set a value
+uv run kleo config path                    # Show config file path
+```
+
+**Config file** (`~/.config/kleo/config.toml`):
+```toml
+[schedule]
+every = "1 day at 09:00"
+tag = "5m"
+strategy = "random"
+
+[printer]
+auto = true
+# printer_name = "kleo"
+# host = "192.168.1.100"
+
+[things]
+# auth_token = "your-token-here"
+```
+
+**Valid config keys:** `schedule.every`, `schedule.tag`, `schedule.strategy`, `printer.auto`, `printer.printer_name`, `printer.host`, `printer.connection`, `things.auth_token`, `service.dry_run`, `service.now`
+
+**Key module:** `kleo/config.py` — `KleoConfig` dataclass, `load_config()`, `set_config_value()`, `ServerState`
+
 ## Server Mode
 
 Server mode periodically fetches tasks from Things app and prints tickets:
 
 ```bash
-# Basic usage - print every 30 minutes
-uv run kleo serve --auto
+# Uses config file defaults (daily at 9:00 AM, auto-discover, tag 5m)
+uv run kleo serve
 
-# Custom schedule
+# CLI flags override config
 uv run kleo serve --every "2 hours" --auto
 uv run kleo serve --every "1 day at 09:00" --printer kleo
-
-# Filter by tag (default: "5m")
-uv run kleo serve --tag focus --auto
 
 # Dry run to test without printing
 uv run kleo serve --dry-run
 
-# Skip immediate print on start
-uv run kleo serve --no-now --auto
+# Check server status
+uv run kleo status
 ```
+
+### Homebrew Service
+
+```bash
+brew services start kleo-receipts          # Start as background service
+brew services stop kleo-receipts           # Stop
+kleo status                                # Check status, PID, last tick
+```
+
+The Homebrew formula runs `kleo serve` with no args. All config comes from the config file. Server writes state to `~/.config/kleo/state.json` (PID, tick count, last task, next run).
 
 ### Schedule Patterns
 
@@ -46,7 +83,7 @@ The `--every` flag supports natural language patterns:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `KLEO_EVERY` | "30 minutes" | Schedule interval |
+| `KLEO_EVERY` | "1 day at 09:00" | Schedule interval |
 | `KLEO_TAG` | "5m" | Things tag to filter |
 | `KLEO_STRATEGY` | "random" | Task selection strategy |
 | `KLEO_PRINTER_NAME` | - | Bonjour printer name |
@@ -58,14 +95,15 @@ The `--every` flag supports natural language patterns:
 To enable "scan to complete" QR codes on tickets, you need a Things URL auth token:
 
 1. Open Things app
-2. Go to Settings → General → Things URLs (Mac) or Settings → General → Things URLs (iOS)
+2. Go to Settings > General > Things URLs (Mac) or Settings > General > Things URLs (iOS)
 3. Enable "Things URLs" if not already enabled
 4. Click "Manage" to reveal your auth token
-5. Set the token: `export KLEO_THINGS_AUTH_TOKEN="your-token-here"`
+5. Set: `kleo config set things.auth_token=YOUR_TOKEN`
 
 ### Architecture
 
 Server mode uses a strategy pattern for task selection:
+- `kleo/config.py` - Config loading, merging, writing, server state
 - `kleo/sources/` - Task sources (Things app integration)
 - `kleo/strategies/` - Selection strategies (random, etc.)
 - `kleo/server.py` - Server loop using `schedule` library
