@@ -184,6 +184,7 @@ def _parse_bool(value: str) -> bool:
 def _write_config_toml(data: dict[str, dict[str, object]], path: Path) -> None:
     """Write a simple TOML file (handles str, bool, int only)."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.chmod(0o700)
 
     lines: list[str] = []
     for section, fields in data.items():
@@ -200,6 +201,7 @@ def _write_config_toml(data: dict[str, dict[str, object]], path: Path) -> None:
         lines.append("")
 
     path.write_text("\n".join(lines))
+    path.chmod(0o600)
 
 
 # --- Server State ---
@@ -221,7 +223,9 @@ class ServerState:
     def save(self) -> None:
         """Write state to STATE_FILE as JSON."""
         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        STATE_FILE.parent.chmod(0o700)
         STATE_FILE.write_text(json.dumps(asdict(self), indent=2))
+        STATE_FILE.chmod(0o600)
 
     @classmethod
     def load(cls) -> ServerState:

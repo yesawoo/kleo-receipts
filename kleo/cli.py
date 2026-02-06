@@ -91,10 +91,19 @@ def config_show() -> None:
     table.add_column("Value", style="green")
     table.add_column("Source", style="dim")
 
+    # Keys whose values should be masked in output
+    sensitive_keys = {"things.auth_token"}
+
     for key, attr in key_to_attr.items():
         value = getattr(cfg, attr)
         source = config_source(key)
-        display_value = str(value) if value is not None else "[dim]-[/dim]"
+        if value is None:
+            display_value = "[dim]-[/dim]"
+        elif key in sensitive_keys:
+            s = str(value)
+            display_value = s[:3] + "..." + s[-3:] if len(s) > 8 else "****"
+        else:
+            display_value = str(value)
         source_style = {
             "file": "[bold yellow]file[/bold yellow]",
             "env": "[bold blue]env[/bold blue]",
@@ -128,7 +137,10 @@ def config_set(
         rprint(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
 
-    rprint(f"[green]Set[/green] {key} = {value}")
+    if key == "things.auth_token":
+        rprint(f"[green]Set[/green] {key} = ****")
+    else:
+        rprint(f"[green]Set[/green] {key} = {value}")
 
 
 @config_app.command("path")
