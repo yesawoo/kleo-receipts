@@ -7,8 +7,16 @@ class KleoReceipts < Formula
   sha256 "26131800213173fe597b6c6ddcc483fd6cff3ce698bb205ec93da63d1060e9a1"
   license "MIT"
 
+  depends_on "freetype"
+  depends_on "jpeg-turbo"
+  depends_on "libtiff"
+  depends_on "little-cms2"
   depends_on "python@3.12"
+  depends_on "webp"
+
   depends_on "libusb" => :optional
+
+  uses_from_macos "zlib"
 
   resource "appdirs" do
     url "https://files.pythonhosted.org/packages/d7/d8/05696357e0311f5b5c316d7b95f46c669dd9c15aaeecbb48c7d0aeb88c40/appdirs-1.4.4.tar.gz"
