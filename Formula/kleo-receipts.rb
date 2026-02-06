@@ -81,7 +81,7 @@ class KleoReceipts < Formula
   end
 
   resource "schedule" do
-    url "https://files.pythonhosted.org/packages/0c/91/b525790063015759f34447d4cf9d2ccb52cdee0f1420508f9f9a46f45cd0c/schedule-1.2.2.tar.gz"
+    url "https://files.pythonhosted.org/packages/0c/91/b525790063015759f34447d4cf9d2ccb52cdee0f1dd6ff8764e863bcb74c/schedule-1.2.2.tar.gz"
     sha256 "15fe9c75fe5fd9b9627f3f19cc0ef1420508f9f9a46f45cd0769ef75ede5f0b7"
   end
 
