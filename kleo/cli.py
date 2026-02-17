@@ -21,7 +21,12 @@ from kleo.config import (
     load_config,
     set_config_value,
 )
-from kleo.discovery import discover_printers, find_printer_by_name
+from kleo.discovery import (
+    discover_printers,
+    filter_receipt_printers,
+    find_printer_by_name,
+    is_receipt_printer,
+)
 from kleo.printer import PrinterConfig, get_printer, detect_usb_printers
 from kleo.ticket import Task, TicketPrinter
 
@@ -422,30 +427,48 @@ def discover(
         rprint("  - Your computer is on the same network as the printer")
         return
 
+    receipt_printers = filter_receipt_printers(printers)
+    top_pick = receipt_printers[0] if receipt_printers else None
+
     table = Table(title=f"Found {len(printers)} printer(s)")
     table.add_column("Name", style="cyan")
     table.add_column("Host", style="green")
     table.add_column("Port", style="yellow")
     table.add_column("Service", style="dim")
+    table.add_column("Receipt?", style="bold")
 
     for printer in printers:
         service_short = printer.service_type.replace("._tcp.local.", "").replace(
             "_", ""
         )
+        if printer is top_pick:
+            receipt_label = "[green]>>> auto[/green]"
+        elif is_receipt_printer(printer):
+            receipt_label = "[green]yes[/green]"
+        else:
+            receipt_label = "[red]no[/red]"
         table.add_row(
             printer.display_name,
             printer.host,
             str(printer.port),
             service_short,
+            receipt_label,
         )
 
     console.print(table)
 
     rprint("\n[dim]Use with print-task:[/dim]")
     if printers:
-        example_name = printers[0].display_name
-        rprint(f'  kleo print-task "My Task" --printer {example_name}')
-        rprint('  kleo print-task "My Task" --auto  [dim]# uses first available[/dim]')
+        example = top_pick or printers[0]
+        rprint(f'  kleo print-task "My Task" --printer {example.display_name}')
+        if top_pick:
+            rprint(
+                f'  kleo print-task "My Task" --auto  [dim]# selects {top_pick.display_name}[/dim]'
+            )
+        else:
+            rprint(
+                '  kleo print-task "My Task" --auto  [dim]# no receipt printers detected[/dim]'
+            )
 
 
 def _resolve_printer_config(
@@ -481,7 +504,16 @@ def _resolve_printer_config(
             if not printers:
                 rprint("[red]Error:[/red] No network printers found")
                 raise typer.Exit(1)
-            discovered = printers[0]
+            receipt_printers = filter_receipt_printers(printers)
+            if not receipt_printers:
+                rprint(
+                    "[red]Error:[/red] No receipt printers found. Discovered printers:"
+                )
+                for p in printers:
+                    rprint(f"  - {p.display_name} ({p.host})")
+                rprint("\n[dim]Use --printer NAME to select a specific printer.[/dim]")
+                raise typer.Exit(1)
+            discovered = receipt_printers[0]
             host = discovered.host
             rprint(
                 f"[green]Using printer:[/green] {discovered.display_name} at {host}:{discovered.port}"

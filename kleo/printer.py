@@ -42,8 +42,7 @@ def get_printer(config: PrinterConfig | None = None) -> Iterator[Escpos]:
         An Escpos printer instance.
     """
     if config is None:
-        printer = Dummy()
-        yield printer
+        yield Dummy()
         return
 
     printer: Escpos
