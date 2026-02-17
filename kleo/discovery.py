@@ -60,19 +60,27 @@ class PrinterListener(ServiceListener):
 
     def _add_printer(self, info: ServiceInfo, service_type: str) -> None:
         addresses = [socket.inet_ntoa(addr) for addr in info.addresses]
-        properties = {}
+        properties: dict[str, str] = {}
         if info.properties:
-            for key, value in info.properties.items():
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8", errors="replace")
-                if isinstance(value, bytes):
-                    value = value.decode("utf-8", errors="replace")
-                properties[key] = value
+            for raw_key, raw_value in info.properties.items():
+                str_key = (
+                    raw_key.decode("utf-8", errors="replace")
+                    if isinstance(raw_key, bytes)
+                    else str(raw_key)
+                )
+                str_value = (
+                    raw_value.decode("utf-8", errors="replace")
+                    if isinstance(raw_value, bytes)
+                    else str(raw_value)
+                    if raw_value is not None
+                    else ""
+                )
+                properties[str_key] = str_value
 
         printer = DiscoveredPrinter(
             name=info.name,
             host=info.server or (addresses[0] if addresses else "unknown"),
-            port=info.port,
+            port=info.port or 0,
             service_type=service_type,
             addresses=addresses,
             properties=properties,
@@ -105,6 +113,82 @@ def discover_printers(timeout: float = 3.0) -> list[DiscoveredPrinter]:
         zeroconf.close()
 
     return list(listener.printers.values())
+
+
+def _receipt_score(printer: DiscoveredPrinter) -> int:
+    """Score a printer on how likely it is to be a receipt/POS printer.
+
+    Positive score = likely receipt printer, negative = likely not.
+    """
+    name_lower = printer.display_name.lower()
+    props_lower = " ".join(printer.properties.values()).lower()
+    combined = f"{name_lower} {props_lower}"
+
+    score = 0
+
+    # Positive signals: receipt/POS/thermal printer indicators
+    positive_keywords = [
+        "receipt",
+        "pos",
+        "thermal",
+        "epson",
+        "tm-t",
+        "tm-m",
+        "kleo",
+        "star ",
+        "star-",
+        "bixolon",
+        "escpos",
+        "esc/pos",
+    ]
+    for kw in positive_keywords:
+        if kw in combined:
+            score += 10
+
+    # Negative signals: known non-receipt printer brands
+    negative_keywords = [
+        "brother",
+        "hp ",
+        "hp-",
+        "hewlett",
+        "canon",
+        "xerox",
+        "lexmark",
+        "samsung",
+        "ricoh",
+        "kyocera",
+        "dell",
+        "konica",
+        "laserjet",
+        "inkjet",
+        "officejet",
+        "deskjet",
+        "pixma",
+    ]
+    for kw in negative_keywords:
+        if kw in combined:
+            score -= 20
+
+    return score
+
+
+def filter_receipt_printers(
+    printers: list[DiscoveredPrinter],
+) -> list[DiscoveredPrinter]:
+    """Filter and sort printers to prefer receipt/POS printers.
+
+    Returns printers that aren't excluded by negative signals (score >= 0),
+    sorted by score descending (best match first).
+    """
+    scored = [(p, _receipt_score(p)) for p in printers]
+    receipt = [(p, s) for p, s in scored if s >= 0]
+    receipt.sort(key=lambda x: x[1], reverse=True)
+    return [p for p, _ in receipt]
+
+
+def is_receipt_printer(printer: DiscoveredPrinter) -> bool:
+    """Check whether a printer looks like a receipt printer."""
+    return _receipt_score(printer) >= 0
 
 
 def find_printer_by_name(name: str, timeout: float = 3.0) -> DiscoveredPrinter | None:

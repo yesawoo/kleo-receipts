@@ -44,3 +44,20 @@ packages = ["kleo"]
 
 [tool.hatch.build.targets.sdist]
 include = ["kleo/", "LICENSE", "README.md", "pyproject.toml"]
+
+[tool.mypy]
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = [
+    "escpos.*",
+    "usb.*",
+    "things",
+]
+ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "ruff>=0.15.1",
+]
