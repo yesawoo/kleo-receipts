@@ -67,7 +67,7 @@ def print_things_task(task_id: str) -> str:
         description=todo.get("notes") or None,
         task_id=todo.get("uuid"),
         auth_token=cfg.things_auth_token,
-        tags=[t for t in (todo.get("tags") or [])],
+        tags=list(todo.get("tags") or []),
     )
 
     # Resolve printer
