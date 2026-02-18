@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+import logging
+
 import schedule
 from rich.console import Console
 
@@ -22,6 +24,7 @@ if TYPE_CHECKING:
     from kleo.sources.base import TaskSource
     from kleo.strategies.base import SelectionStrategy
 
+logger = logging.getLogger(__name__)
 console = Console()
 
 
@@ -121,8 +124,8 @@ class TicketServer:
         def _run_mcp() -> None:
             try:
                 mcp_app.run(transport="streamable-http")
-            except Exception as e:
-                console.print(f"[red]MCP server error:[/red] {e}")
+            except Exception:
+                logger.exception("MCP server failed on port %d", self.config.mcp_port)
 
         self._mcp_thread = threading.Thread(target=_run_mcp, daemon=True)
         self._mcp_thread.start()
