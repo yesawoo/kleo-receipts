@@ -93,6 +93,8 @@ def config_show() -> None:
         "things.auth_token": "things_auth_token",
         "service.dry_run": "dry_run",
         "service.now": "now",
+        "mcp.enabled": "mcp_enabled",
+        "mcp.port": "mcp_port",
     }
 
     table = Table(title="Kleo Configuration")
