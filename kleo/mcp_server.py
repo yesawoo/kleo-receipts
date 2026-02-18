@@ -107,7 +107,7 @@ def list_things_tasks(tag: str = "5m") -> list[dict[str, str | None]]:
 
 
 @mcp.tool()
-def discover_printers() -> list[dict[str, str | int]]:
+def discover_printers() -> list[dict[str, str | int | bool]]:
     """Find receipt printers on the network via Bonjour/mDNS.
 
     Returns:
