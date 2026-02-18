@@ -24,10 +24,14 @@ from kleo.config import (
 from kleo.discovery import (
     discover_printers,
     filter_receipt_printers,
-    find_printer_by_name,
     is_receipt_printer,
 )
-from kleo.printer import PrinterConfig, get_printer, detect_usb_printers
+from kleo.printer import (
+    PrinterConfig,
+    get_printer,
+    detect_usb_printers,
+    resolve_printer_config,
+)
 from kleo.ticket import Task, TicketPrinter
 
 app = typer.Typer(
@@ -479,70 +483,19 @@ def _resolve_printer_config(
     vendor_id: str | None = None,
     product_id: str | None = None,
 ) -> PrinterConfig | None:
-    """Resolve printer configuration from options.
-
-    Returns:
-        PrinterConfig if a printer is configured, None for dummy mode.
-
-    Raises:
-        typer.Exit: If printer discovery fails or required options are missing.
-    """
-    # Handle auto-discovery
-    if auto or printer_name:
-        rprint("[dim]Discovering printers via Bonjour...[/dim]")
-        if printer_name:
-            discovered = find_printer_by_name(printer_name)
-            if not discovered:
-                rprint(f"[red]Error:[/red] Printer '{printer_name}' not found")
-                raise typer.Exit(1)
-            host = discovered.host
-            rprint(
-                f"[green]Found printer:[/green] {discovered.display_name} at {host}:{discovered.port}"
-            )
-        else:
-            printers = discover_printers()
-            if not printers:
-                rprint("[red]Error:[/red] No network printers found")
-                raise typer.Exit(1)
-            receipt_printers = filter_receipt_printers(printers)
-            if not receipt_printers:
-                rprint(
-                    "[red]Error:[/red] No receipt printers found. Discovered printers:"
-                )
-                for p in printers:
-                    rprint(f"  - {p.display_name} ({p.host})")
-                rprint("\n[dim]Use --printer NAME to select a specific printer.[/dim]")
-                raise typer.Exit(1)
-            discovered = receipt_printers[0]
-            host = discovered.host
-            rprint(
-                f"[green]Using printer:[/green] {discovered.display_name} at {host}:{discovered.port}"
-            )
-        connection = "network"
-
-    # Configure printer
-    if connection == "dummy":
-        return None
-
-    config = PrinterConfig(connection_type=connection)
-    if connection == "network":
-        if not host:
-            rprint(
-                "[red]Error:[/red] Network connection requires --host, --auto, or --printer"
-            )
-            raise typer.Exit(1)
-        config.host = host
-    elif connection == "usb":
-        if vendor_id:
-            config.vendor_id = (
-                int(vendor_id, 16) if vendor_id.startswith("0x") else int(vendor_id)
-            )
-        if product_id:
-            config.product_id = (
-                int(product_id, 16) if product_id.startswith("0x") else int(product_id)
-            )
-
-    return config
+    """Resolve printer configuration, converting errors to typer.Exit."""
+    try:
+        return resolve_printer_config(
+            auto=auto,
+            printer_name=printer_name,
+            host=host,
+            connection=connection,
+            vendor_id=vendor_id,
+            product_id=product_id,
+        )
+    except ValueError as e:
+        rprint(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
 
 
 # --- serve command ---
@@ -609,6 +562,16 @@ def serve(
             "--printer", help="Printer name to find via Bonjour (e.g., 'kleo')"
         ),
     ] = None,
+    mcp: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--mcp/--no-mcp", help="Enable MCP HTTP server alongside scheduler"
+        ),
+    ] = None,
+    mcp_port: Annotated[
+        Optional[int],
+        typer.Option("--mcp-port", help="Port for the MCP HTTP server"),
+    ] = None,
 ) -> None:
     """Start server mode to periodically print task tickets from Things.
 
@@ -646,6 +609,8 @@ def serve(
     )
     effective_host = host if host is not None else cfg.host
     effective_connection = connection if connection is not None else cfg.connection
+    effective_mcp = mcp if mcp is not None else cfg.mcp_enabled
+    effective_mcp_port = mcp_port if mcp_port is not None else cfg.mcp_port
 
     # Resolve printer configuration
     printer_config = _resolve_printer_config(
@@ -681,6 +646,8 @@ def serve(
             printer_config=printer_config,
             dry_run=effective_dry_run,
             run_now=effective_now,
+            mcp_enabled=effective_mcp,
+            mcp_port=effective_mcp_port,
         )
     except ValueError as e:
         rprint(f"[red]Error:[/red] {e}")

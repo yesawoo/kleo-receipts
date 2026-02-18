@@ -1,0 +1,18 @@
+{
+  "name": "kleo",
+  "version": "0.3.0",
+  "description": "Print task tickets from Things to Epson receipt printers",
+  "manifest_version": "0.4",
+  "server": {
+    "type": "uv",
+    "entry_point": "server.py"
+  },
+  "user_config": {
+    "things_auth_token": {
+      "type": "string",
+      "description": "Things URL auth token for task completion QR codes. Find in Things: Settings > General > Things URLs > Manage.",
+      "sensitive": true,
+      "required": false
+    }
+  }
+}

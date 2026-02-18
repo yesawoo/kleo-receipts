@@ -1,0 +1,13 @@
+[project]
+name = "kleo-mcp-extension"
+version = "0.3.0"
+description = "Claude Desktop extension for Kleo receipt printer"
+requires-python = ">=3.12"
+dependencies = [
+    "kleo-receipts>=0.3.0",
+    "mcp>=1.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

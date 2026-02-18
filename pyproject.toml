@@ -23,6 +23,7 @@ dependencies = [
     "zeroconf>=0.131.0",
     "things.py>=0.0.15",
     "schedule>=1.2.0",
+    "mcp>=1.0.0",
 ]
 
 [project.urls]
@@ -53,6 +54,7 @@ module = [
     "escpos.*",
     "usb.*",
     "things",
+    "mcp.*",
 ]
 ignore_missing_imports = true
 

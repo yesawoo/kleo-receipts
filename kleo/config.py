@@ -20,6 +20,8 @@ ENV_STRATEGY = "KLEO_STRATEGY"
 ENV_PRINTER_NAME = "KLEO_PRINTER_NAME"
 ENV_PRINTER_HOST = "KLEO_PRINTER_HOST"
 ENV_THINGS_AUTH_TOKEN = "KLEO_THINGS_AUTH_TOKEN"
+ENV_MCP_ENABLED = "KLEO_MCP_ENABLED"
+ENV_MCP_PORT = "KLEO_MCP_PORT"
 
 # Valid config keys: section.field -> (env_var, type)
 VALID_KEYS: dict[str, tuple[str | None, type]] = {
@@ -33,6 +35,8 @@ VALID_KEYS: dict[str, tuple[str | None, type]] = {
     "things.auth_token": (ENV_THINGS_AUTH_TOKEN, str),
     "service.dry_run": (None, bool),
     "service.now": (None, bool),
+    "mcp.enabled": (ENV_MCP_ENABLED, bool),
+    "mcp.port": (ENV_MCP_PORT, int),
 }
 
 
@@ -50,6 +54,8 @@ class KleoConfig:
     things_auth_token: str | None = None
     dry_run: bool = False
     now: bool = True
+    mcp_enabled: bool = False
+    mcp_port: int = 8177
 
 
 def load_config() -> KleoConfig:
@@ -88,6 +94,8 @@ def _merge_config(file_data: dict[str, dict[str, object]]) -> KleoConfig:
         "things.auth_token": "things_auth_token",
         "service.dry_run": "dry_run",
         "service.now": "now",
+        "mcp.enabled": "mcp_enabled",
+        "mcp.port": "mcp_port",
     }
 
     for key, attr in field_map.items():
@@ -107,6 +115,8 @@ def _merge_config(file_data: dict[str, dict[str, object]]) -> KleoConfig:
             if env_value is not None:
                 if field_type is bool:
                     setattr(config, attr, _parse_bool(env_value))
+                elif field_type is int:
+                    setattr(config, attr, int(env_value))
                 else:
                     setattr(config, attr, env_value)
                 continue
@@ -170,6 +180,8 @@ def set_config_value(key: str, value: str) -> None:
     # Coerce value
     if field_type is bool:
         data[section][field_name] = _parse_bool(value)
+    elif field_type is int:
+        data[section][field_name] = int(value)
     else:
         data[section][field_name] = value
 
