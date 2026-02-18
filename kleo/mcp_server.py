@@ -45,12 +45,19 @@ def print_things_task(task_id: str) -> str:
     Returns:
         A message indicating success or describing the error.
     """
-    import things
+    try:
+        import things
+    except ImportError:
+        return "Things.py library is not installed. Install with: uv add things.py"
 
     cfg = load_config()
 
     # Fetch the specific task
-    todos = things.todos(uuid=task_id)
+    try:
+        todos = things.todos(uuid=task_id)
+    except Exception as e:
+        return f"Failed to fetch task from Things: {e}"
+
     if not todos:
         return f"Task not found: {task_id}"
 
@@ -84,18 +91,25 @@ def print_things_task(task_id: str) -> str:
 
 
 @mcp.tool()
-def list_things_tasks(tag: str = "5m") -> list[dict[str, str | None]]:
+def list_things_tasks(tag: str = "5m") -> list[dict[str, str | None]] | str:
     """List available Things tasks filtered by tag.
 
     Args:
         tag: The Things tag to filter by (default: "5m").
 
     Returns:
-        List of tasks with uuid, title, and notes fields.
+        List of tasks with uuid, title, and notes fields, or an error message.
     """
-    import things
+    try:
+        import things
+    except ImportError:
+        return "Things.py library is not installed. Install with: uv add things.py"
 
-    todos = things.todos(tag=tag, status="incomplete")
+    try:
+        todos = things.todos(tag=tag, status="incomplete")
+    except Exception as e:
+        return f"Failed to fetch tasks from Things: {e}"
+
     return [
         {
             "uuid": todo.get("uuid"),
