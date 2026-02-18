@@ -121,13 +121,18 @@ def list_things_tasks(tag: str = "5m") -> list[dict[str, str | None]] | str:
 
 
 @mcp.tool()
-def discover_printers() -> list[dict[str, str | int | bool]]:
+def discover_printers() -> list[dict[str, str | int | bool]] | str:
     """Find receipt printers on the network via Bonjour/mDNS.
 
     Returns:
-        List of discovered printers with name, host, port, and receipt printer status.
+        List of discovered printers with name, host, port, and receipt
+        printer status, or an error message.
     """
-    printers = discover_network_printers()
+    try:
+        printers = discover_network_printers()
+    except Exception as e:
+        return f"Discovery error: {e}"
+
     receipt = filter_receipt_printers(printers)
     receipt_hosts = {p.host for p in receipt}
 
