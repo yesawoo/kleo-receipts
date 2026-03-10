@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import re
 import signal
-import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -36,8 +35,6 @@ class ServerConfig:
     printer_config: PrinterConfig | None = None
     dry_run: bool = False
     run_now: bool = True
-    mcp_enabled: bool = False
-    mcp_port: int = 8177
 
     # Parsed schedule components (set by _parse_schedule)
     _interval: int = field(default=30, init=False, repr=False)
@@ -63,7 +60,6 @@ class TicketServer:
         self.config = config
         self._running = False
         self._tick_count = 0
-        self._mcp_thread: threading.Thread | None = None
         self._state = ServerState(
             pid=os.getpid(),
             started_at=datetime.now().isoformat(),
@@ -78,19 +74,11 @@ class TicketServer:
         # Save initial state
         self._state.save()
 
-        # Start MCP server if enabled
-        if self.config.mcp_enabled:
-            self._start_mcp_server()
-
         console.print()
         console.print("[bold green]Kleo Ticket Server Started[/bold green]")
         console.print(f"  Source: [cyan]{self.source.name}[/cyan]")
         console.print(f"  Strategy: [cyan]{self.strategy.name}[/cyan]")
         console.print(f"  Schedule: [cyan]{self.config.every}[/cyan]")
-        if self.config.mcp_enabled:
-            console.print(
-                f"  MCP: [cyan]http://localhost:{self.config.mcp_port}[/cyan]"
-            )
         if self.config.dry_run:
             console.print("  Mode: [yellow]DRY RUN (no actual printing)[/yellow]")
         console.print()
@@ -114,21 +102,6 @@ class TicketServer:
     def stop(self) -> None:
         """Stop the server loop."""
         self._running = False
-
-    def _start_mcp_server(self) -> None:
-        """Launch the MCP HTTP server in a background daemon thread."""
-        from kleo.mcp_server import mcp as mcp_app
-
-        mcp_app.settings.port = self.config.mcp_port
-
-        def _run_mcp() -> None:
-            try:
-                mcp_app.run(transport="streamable-http")
-            except Exception:
-                logger.exception("MCP server failed on port %d", self.config.mcp_port)
-
-        self._mcp_thread = threading.Thread(target=_run_mcp, daemon=True)
-        self._mcp_thread.start()
 
     def _setup_signal_handlers(self) -> None:
         """Set up signal handlers for graceful shutdown."""

@@ -93,7 +93,6 @@ def config_show() -> None:
         "things.auth_token": "things_auth_token",
         "service.dry_run": "dry_run",
         "service.now": "now",
-        "mcp.enabled": "mcp_enabled",
         "mcp.port": "mcp_port",
     }
 
@@ -564,16 +563,6 @@ def serve(
             "--printer", help="Printer name to find via Bonjour (e.g., 'kleo')"
         ),
     ] = None,
-    mcp: Annotated[
-        Optional[bool],
-        typer.Option(
-            "--mcp/--no-mcp", help="Enable MCP HTTP server alongside scheduler"
-        ),
-    ] = None,
-    mcp_port: Annotated[
-        Optional[int],
-        typer.Option("--mcp-port", help="Port for the MCP HTTP server"),
-    ] = None,
 ) -> None:
     """Start server mode to periodically print task tickets from Things.
 
@@ -611,9 +600,6 @@ def serve(
     )
     effective_host = host if host is not None else cfg.host
     effective_connection = connection if connection is not None else cfg.connection
-    effective_mcp = mcp if mcp is not None else cfg.mcp_enabled
-    effective_mcp_port = mcp_port if mcp_port is not None else cfg.mcp_port
-
     # Resolve printer configuration
     printer_config = _resolve_printer_config(
         auto=effective_auto,
@@ -648,8 +634,6 @@ def serve(
             printer_config=printer_config,
             dry_run=effective_dry_run,
             run_now=effective_now,
-            mcp_enabled=effective_mcp,
-            mcp_port=effective_mcp_port,
         )
     except ValueError as e:
         rprint(f"[red]Error:[/red] {e}")
@@ -667,6 +651,47 @@ def serve(
     except ValueError as e:
         rprint(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
+
+
+@app.command()
+def mcp(
+    port: Annotated[
+        Optional[int],
+        typer.Option("--port", "-p", help="Port for HTTP transport"),
+    ] = None,
+    transport: Annotated[
+        str,
+        typer.Option(
+            "--transport",
+            "-t",
+            help="Transport type: streamable-http or stdio",
+        ),
+    ] = "streamable-http",
+) -> None:
+    """Start the MCP server for Claude integration.
+
+    Exposes kleo tools (print tasks, list tasks, discover printers)
+    to MCP clients like Claude Code and Claude Desktop.
+
+    Examples:
+        kleo mcp                           # HTTP on default port
+        kleo mcp --port 9000               # HTTP on custom port
+        kleo mcp --transport stdio         # stdio for Claude Code
+    """
+    from kleo.mcp_server import mcp as mcp_app
+
+    cfg = load_config()
+    effective_port = port if port is not None else cfg.mcp_port
+
+    if transport == "stdio":
+        mcp_app.run(transport="stdio")
+    else:
+        mcp_app.settings.port = effective_port
+        rprint("[bold green]Kleo MCP Server[/bold green]")
+        rprint(f"  Transport: [cyan]{transport}[/cyan]")
+        rprint(f"  Port: [cyan]{effective_port}[/cyan]")
+        rprint()
+        mcp_app.run(transport=transport)
 
 
 if __name__ == "__main__":

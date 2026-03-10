@@ -20,7 +20,6 @@ ENV_STRATEGY = "KLEO_STRATEGY"
 ENV_PRINTER_NAME = "KLEO_PRINTER_NAME"
 ENV_PRINTER_HOST = "KLEO_PRINTER_HOST"
 ENV_THINGS_AUTH_TOKEN = "KLEO_THINGS_AUTH_TOKEN"
-ENV_MCP_ENABLED = "KLEO_MCP_ENABLED"
 ENV_MCP_PORT = "KLEO_MCP_PORT"
 
 # Valid config keys: section.field -> (env_var, type)
@@ -35,7 +34,6 @@ VALID_KEYS: dict[str, tuple[str | None, type]] = {
     "things.auth_token": (ENV_THINGS_AUTH_TOKEN, str),
     "service.dry_run": (None, bool),
     "service.now": (None, bool),
-    "mcp.enabled": (ENV_MCP_ENABLED, bool),
     "mcp.port": (ENV_MCP_PORT, int),
 }
 
@@ -54,7 +52,6 @@ class KleoConfig:
     things_auth_token: str | None = None
     dry_run: bool = False
     now: bool = True
-    mcp_enabled: bool = False
     mcp_port: int = 8177
 
 
@@ -94,7 +91,6 @@ def _merge_config(file_data: dict[str, dict[str, object]]) -> KleoConfig:
         "things.auth_token": "things_auth_token",
         "service.dry_run": "dry_run",
         "service.now": "now",
-        "mcp.enabled": "mcp_enabled",
         "mcp.port": "mcp_port",
     }
 
