@@ -295,7 +295,9 @@ class TicketServer:
                     self.config.printer_config
                     and self.config.printer_config.connection_type != "dummy"
                 ):
-                    ticket_printer.print_task(task)
+                    ticket_printer.print_task(
+                        task, triggered_by=f"server:tick#{self._tick_count}"
+                    )
                     console.print("  [green]Printed successfully[/green]")
                 else:
                     # Dummy mode - show preview

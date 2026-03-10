@@ -79,11 +79,12 @@ class TicketPrinter:
 
         return textwrap.wrap(text, width=self.width - indent)
 
-    def print_task(self, task: Task) -> None:
+    def print_task(self, task: Task, triggered_by: str = "unknown") -> None:
         """Print a task ticket.
 
         Args:
             task: The task to print.
+            triggered_by: Debug label identifying what triggered this print.
         """
         p = self.printer
 
@@ -150,6 +151,7 @@ class TicketPrinter:
         p.text(self._separator("-") + "\n")
         p.set(align="center", font="b")
         p.text(f"Created: {task.created_at.strftime('%Y-%m-%d %H:%M')}\n")
+        p.text(f"via: {triggered_by}\n")
         p.text(self._separator("=") + "\n")
 
         # Cut the paper

@@ -81,7 +81,7 @@ def print_things_task(task_id: str) -> str:
         with get_printer(printer_config) as printer:
             ticket_printer = TicketPrinter(printer)
             if printer_config and printer_config.connection_type != "dummy":
-                ticket_printer.print_task(task)
+                ticket_printer.print_task(task, triggered_by="mcp:print_things_task")
                 return f"Printed ticket for: {task.title}"
             else:
                 preview = ticket_printer.print_preview(task)
