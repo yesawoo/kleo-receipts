@@ -42,7 +42,7 @@ class Task:
         Things settings: Settings → General → Things URLs → Manage.
         """
         if self.task_id and self.auth_token:
-            return f"things:///update?id={self.task_id}&auth-token={self.auth_token}&completed=true"
+            return f"things:///update?id={self.task_id}&auth-token={self.auth_token}&completed=true&reveal=true"
         return None
 
 
